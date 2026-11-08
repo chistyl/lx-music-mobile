@@ -1,0 +1,59 @@
+name: Build Android APK and Source ZIP
+
+on:
+  pull_request:
+    branches:
+      - dev
+  push:
+    branches:
+      - feature/disable-auto-update
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The upstream repository currently has unrelated ESLint errors in
+      # src/core/music/utils.ts; keep lint separate from artifact packaging.
+      - name: Build JS bundle test
+        run: npm run build-test
+
+      - name: Build Android debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Package source ZIP
+        run: |
+          git archive --format=zip --output=lx-music-mobile-source.zip HEAD
+
+      - name: Upload APK and source
+        uses: actions/upload-artifact@v4
+        with:
+          name: lx-music-mobile-no-auto-update
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            lx-music-mobile-source.zip
+          if-no-files-found: error
+          retention-days: 14
