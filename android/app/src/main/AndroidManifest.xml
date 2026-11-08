@@ -2,6 +2,10 @@
   xmlns:tools="http://schemas.android.com/tools"
   package="cn.toside.music.mobile">
 
+    <!-- Android TV compatibility: keep Leanback optional and touchscreen optional. -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
     <!-- 获取读写外置存储权限 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
@@ -18,6 +22,7 @@
       android:requestLegacyExternalStorage="true"
       android:icon="@mipmap/ic_launcher"
       android:roundIcon="@mipmap/ic_launcher_round"
+      android:banner="@mipmap/ic_launcher"
       android:allowBackup="false"
       android:theme="@style/AppTheme"
       tools:targetApi="n">
