@@ -1,0 +1,83 @@
+name: Android APK Toolchain Validation
+
+on:
+  push:
+    branches:
+      - test/android-apk-toolchain-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build JS bundle test
+        run: npm run build-test
+
+      - name: Build Android debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Locate Android build tools
+        id: tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS_DIR/aapt"
+          test -x "$BUILD_TOOLS_DIR/apksigner"
+          test -x "$BUILD_TOOLS_DIR/zipalign"
+          echo "dir=$BUILD_TOOLS_DIR" >> "$GITHUB_OUTPUT"
+          echo "Using Android build tools: $BUILD_TOOLS_DIR"
+
+      - name: Validate APK package and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/lx-music-mobile-v1.9.2-universal.apk"
+          test -s "$APK"
+          "${{ steps.tools.outputs.dir }}/aapt" dump badging "$APK" | tee apk-badging.txt
+          grep -q "package: name='cn.toside.music.mobile'" apk-badging.txt
+          grep -q "uses-feature: name='android.software.leanback'\|uses-feature-not-required: name='android.software.leanback'" apk-badging.txt
+          grep -q "uses-feature-not-required: name='android.hardware.touchscreen'" apk-badging.txt
+          grep -q "application-banner:" apk-badging.txt
+
+      - name: Verify APK alignment and signatures
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/lx-music-mobile-v1.9.2-universal.apk"
+          "${{ steps.tools.outputs.dir }}/zipalign" -c -v 4 "$APK"
+          "${{ steps.tools.outputs.dir }}/apksigner" verify --verbose --print-certs "$APK" | tee apk-signature.txt
+          grep -q "Verifies" apk-signature.txt
+          grep -q "Signer #1 certificate SHA-256 digest: fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c" apk-signature.txt
+
+      - name: Upload validation reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-validation-reports
+          path: |
+            apk-badging.txt
+            apk-signature.txt
+          retention-days: 14
